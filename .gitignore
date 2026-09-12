@@ -1,0 +1,29 @@
+# Python virtuelle Umgebungen
+.venv/
+venv/
+env/
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# IDE-Konfigurationen
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# Betriebssystem-Dateien
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# PDF- und Dokumentdateien (Schutz vor versehentlichem Upload persönlicher Transkripte)
+*.pdf
+
+# Temporäre Bild- oder Vorschau-Dateien
+*.png
+*.jpg
+scratch/

@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Seitennummerierer & Transkript-Styler</title>
+  
+  <!-- Lokale Bibliotheken mit CDN-Fallback -->
+  <script src="lib/pdf-lib.min.js"></script>
+  <script>
+    if (typeof PDFLib === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"><\/script>');
+    }
+  </script>
+  <script src="lib/pdf.min.js"></script>
+  <script>
+    if (typeof pdfjsLib === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>');
+    }
+  </script>
+  
+  <style>
+    :root {
+      --primary: #2563EB;
+      --primary-hover: #1D4ED8;
+      --bg: #F8FAFC;
+      --card: #FFFFFF;
+      --text-main: #0F172A;
+      --text-muted: #64748B;
+      --border: #E2E8F0;
+      --success: #10B981;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+      padding: 40px 16px;
+      min-height: 100vh;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 680px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--text-main);
+      letter-spacing: -0.5px;
+    }
+
+    .header p {
+      margin-top: 6px;
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    .privacy-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background-color: #ECFDF5;
+      color: #065F46;
+      border: 1px solid #A7F3D0;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 10px;
+    }
+
+    /* Card */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    }
+
+    /* Drop Zone */
+    .drop-zone {
+      border: 2px dashed #CBD5E1;
+      border-radius: 14px;
+      padding: 32px 20px;
+      text-align: center;
+      background: #F8FAFC;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--primary);
+      background-color: #EFF6FF;
+    }
+
+    .drop-icon {
+      font-size: 40px;
+      margin-bottom: 8px;
+    }
+
+    .drop-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .drop-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* File Info Badge */
+    .file-info {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      background: #ECFDF5;
+      border: 1px solid #A7F3D0;
+      padding: 12px 16px;
+      border-radius: 10px;
+      margin-top: 14px;
+    }
+
+    .file-info-text {
+      flex: 1;
+    }
+
+    .file-name {
+      font-weight: 700;
+      font-size: 14px;
+      color: #065F46;
+      word-break: break-all;
+    }
+
+    .file-meta {
+      font-size: 12px;
+      color: #047857;
+    }
+
+    .btn-remove {
+      background: none;
+      border: none;
+      color: #047857;
+      cursor: pointer;
+      font-size: 18px;
+      padding: 4px 8px;
+      font-weight: bold;
+    }
+
+    /* Settings Group */
+    .settings-group {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .setting-label {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .setting-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .setting-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Inputs */
+    input[type="number"] {
+      width: 100px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      text-align: center;
+      background: #F8FAFC;
+    }
+
+    input[type="number"]:focus {
+      outline: none;
+      border-color: var(--primary);
+      background: #FFF;
+    }
+
+    /* Toggle Switch */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #CBD5E1;
+      transition: .2s;
+      border-radius: 24px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .2s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--primary);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+
+    .divider {
+      height: 1px;
+      background-color: var(--border);
+      margin: 4px 0;
+    }
+
+    /* Preview Box */
+    .preview-box {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .preview-tab-btn {
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .preview-tab-btn.active {
+      background: #FFFFFF;
+      color: var(--primary);
+      font-weight: 700;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .preview-canvas-wrap {
+      background: #F8FAFC;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      padding: 10px;
+    }
+
+    #previewCanvas {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    /* Buttons */
+    .btn-primary {
+      background-color: var(--primary);
+      color: white;
+      font-size: 16px;
+      font-weight: 700;
+      padding: 14px 20px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      width: 100%;
+      transition: background-color 0.2s ease, transform 0.1s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background-color: var(--primary-hover);
+    }
+
+    .btn-primary:active:not(:disabled) {
+      transform: scale(0.99);
+    }
+
+    .btn-primary:disabled {
+      background-color: #CBD5E1;
+      cursor: not-allowed;
+    }
+
+    /* Progress */
+    .progress-wrap {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 10px;
+      background: #E2E8F0;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      width: 0%;
+      height: 100%;
+      background: var(--primary);
+      transition: width 0.15s ease;
+    }
+
+    .progress-text {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <h1>📄 PDF Seitennummerierer</h1>
+    <p>Nummeriert Dokumente im exakten Stil (Arial 12.96 pt • rechtsbündig unten rechts)</p>
+    <div class="privacy-badge">
+      🔒 100 % lokal im Browser • Keine Datei verlässt deinen Rechner
+    </div>
+  </div>
+
+  <!-- Card: Datei laden -->
+  <div class="card">
+    <input type="file" id="fileInput" accept="application/pdf" style="display: none;">
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-icon">📑</div>
+      <div class="drop-title">PDF-Datei hier hineinziehen</div>
+      <div class="drop-desc">oder klicken, um den Dateiexplorer zu öffnen</div>
+    </div>
+
+    <div class="file-info" id="fileInfo">
+      <div class="file-info-text">
+        <div class="file-name" id="fileName">Dokument.pdf</div>
+        <div class="file-meta" id="fileMeta">0 Seiten • 0 KB</div>
+      </div>
+      <button class="btn-remove" id="btnRemoveFile" title="Datei entfernen">✕</button>
+    </div>
+  </div>
+
+  <!-- Card: Einstellungen & Vorschau -->
+  <div class="card settings-group">
+    <!-- Startnummer -->
+    <div class="setting-row">
+      <div class="setting-label">
+        <span class="setting-title">Start-Seitenzahl:</span>
+        <span class="setting-subtitle">Die erste Seite erhält diese Nummer</span>
+      </div>
+      <input type="number" id="startNumber" value="1" min="1" max="99999">
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Toggle & Input: Anhang korrigieren -->
+    <div class="setting-row">
+      <div class="setting-label">
+        <span class="setting-title">Kopfzeile: "Anhang" korrigieren</span>
+        <span class="setting-subtitle" id="anhangSubtitle">Kopfzeile auf Seite 1 anpassen (z. B. "Anhang B..." ➔ "Anhang C...")</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <input type="text" id="anhangLetterInput" value="C" maxlength="4" style="width: 48px; padding: 7px 6px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-weight: 700; text-align: center; background: #F8FAFC; text-transform: uppercase;" title="Neuer Buchstabe für den Anhang (z. B. C)">
+        <label class="switch">
+          <input type="checkbox" id="toggleAnhang" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Toggle 1: MAXQDA-Logo -->
+    <div class="setting-row">
+      <div class="setting-label">
+        <span class="setting-title">MAXQDA-Logo herausschneiden</span>
+        <span class="setting-subtitle">Entfernt das Bild-Logo unten rechts für die neue Seitenzahl</span>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="toggleLogo" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <!-- Toggle 2: Alte zentrierte Seitenzahl -->
+    <div class="setting-row">
+      <div class="setting-label">
+        <span class="setting-title">Alte zentrierte Paginierung löschen</span>
+        <span class="setting-subtitle">Überdeckt bestehende Seitenzahlen in der Fußzeilenmitte (z. B. '1/8')</span>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="toggleOldPagination" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <!-- Optionale Feinabstimmung der Abdeckung -->
+    <details class="fine-tuning" style="margin-top: -4px;">
+      <summary style="font-size: 12px; color: var(--primary); cursor: pointer; font-weight: 600;">
+        ⚙️ Feinabstimmung der Abdeck-Größe (optional)
+      </summary>
+      <div style="display: flex; gap: 14px; margin-top: 10px; background: #F8FAFC; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border);">
+        <div style="flex: 1;">
+          <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted);">
+            Abdeck-Höhe (pt):
+          </label>
+          <input type="number" id="customBoxHeight" value="17" min="8" max="28" step="1" style="width: 100%;">
+        </div>
+        <div style="flex: 1;">
+          <label style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 4px; color: var(--text-muted);">
+            Abstand von unten (pt):
+          </label>
+          <input type="number" id="customBoxY" value="47" min="30" max="65" step="1" style="width: 100%;">
+        </div>
+      </div>
+    </details>
+
+    <!-- Live Vorschau -->
+    <div class="preview-box" id="previewBox">
+      <div class="divider"></div>
+      <div class="preview-header">
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <span class="setting-title" style="font-size: 13px;">Live-Vorschau (Seite 1):</span>
+          <div class="preview-tabs" style="display: inline-flex; background: #E2E8F0; border-radius: 8px; padding: 2px;">
+            <button type="button" class="preview-tab-btn active" id="tabFooter">⬇️ Fußzeile</button>
+            <button type="button" class="preview-tab-btn" id="tabHeader">⬆️ Kopfzeile (Anhang)</button>
+          </div>
+        </div>
+        <span style="font-size: 11px; color: var(--success); font-weight: 600;">● Vorschau aktiv</span>
+      </div>
+      <div class="preview-canvas-wrap">
+        <canvas id="previewCanvas"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress Bar -->
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressBarFill"></div>
+    </div>
+    <div class="progress-text" id="progressText">Verarbeite Seite...</div>
+  </div>
+
+  <!-- Action Button -->
+  <button class="btn-primary" id="btnProcess" disabled>
+    🚀 PDF nummerieren & herunterladen
+  </button>
+</div>
+
+<script>
+  // Initialisiere PDF.js Worker
+  if (window.pdfjsLib) {
+    try {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
+    } catch (e) {
+      console.warn('Worker init error:', e);
+    }
+  }
+
+  // Globale Variablen
+  let loadedFile = null;
+  let originalPdfBytes = null; // Als Uint8Array gespeichert
+  let pageCount = 0;
+  let detectedAnhang = null;
+  let previewMode = 'footer'; // 'footer' oder 'header'
+
+  // DOM Elemente
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  const fileInfo = document.getElementById('fileInfo');
+  const fileName = document.getElementById('fileName');
+  const fileMeta = document.getElementById('fileMeta');
+  const btnRemoveFile = document.getElementById('btnRemoveFile');
+  const startNumberInput = document.getElementById('startNumber');
+  const anhangSubtitle = document.getElementById('anhangSubtitle');
+  const anhangLetterInput = document.getElementById('anhangLetterInput');
+  const toggleAnhang = document.getElementById('toggleAnhang');
+  const toggleLogo = document.getElementById('toggleLogo');
+  const toggleOldPagination = document.getElementById('toggleOldPagination');
+  const customBoxHeightInput = document.getElementById('customBoxHeight');
+  const customBoxYInput = document.getElementById('customBoxY');
+  const previewBox = document.getElementById('previewBox');
+  const previewCanvas = document.getElementById('previewCanvas');
+  const tabFooter = document.getElementById('tabFooter');
+  const tabHeader = document.getElementById('tabHeader');
+  const btnProcess = document.getElementById('btnProcess');
+  const progressWrap = document.getElementById('progressWrap');
+  const progressBarFill = document.getElementById('progressBarFill');
+  const progressText = document.getElementById('progressText');
+
+  // Drag & Drop Handlers
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length > 0) handleFile(e.target.files[0]);
+  });
+
+  ['dragenter', 'dragover'].forEach(name => {
+    dropZone.addEventListener(name, (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+  });
+
+  ['dragleave', 'drop'].forEach(name => {
+    dropZone.addEventListener(name, (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+    });
+  });
+
+  dropZone.addEventListener('drop', (e) => {
+    if (e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        handleFile(file);
+      } else {
+        alert('Bitte wähle eine gültige PDF-Datei aus.');
+      }
+    }
+  });
+
+  function updateAnhangSubtitle() {
+    const letter = (anhangLetterInput.value || 'C').trim().toUpperCase();
+    if (detectedAnhang) {
+      const targetText = `Anhang ${letter}${detectedAnhang.suffix}`;
+      anhangSubtitle.innerHTML = `Erkannt: <strong style="color: var(--text-main);">"${detectedAnhang.fullText}"</strong> ➔ wird zu <strong style="color: var(--primary);">"${targetText}"</strong>`;
+    } else {
+      anhangSubtitle.textContent = `Ersetzt Kopfzeile "Anhang ..." durch "Anhang ${letter}..." auf Seite 1`;
+    }
+  }
+
+  function setPreviewMode(mode) {
+    previewMode = mode;
+    if (mode === 'header') {
+      tabHeader.classList.add('active');
+      tabFooter.classList.remove('active');
+    } else {
+      tabFooter.classList.add('active');
+      tabHeader.classList.remove('active');
+    }
+    schedulePreview(0);
+  }
+
+  tabFooter.addEventListener('click', () => setPreviewMode('footer'));
+  tabHeader.addEventListener('click', () => setPreviewMode('header'));
+
+  btnRemoveFile.addEventListener('click', () => {
+    loadedFile = null;
+    originalPdfBytes = null;
+    detectedAnhang = null;
+    updateAnhangSubtitle();
+    setPreviewMode('footer');
+    fileInput.value = '';
+    dropZone.style.display = 'block';
+    fileInfo.style.display = 'none';
+    previewBox.style.display = 'none';
+    btnProcess.disabled = true;
+  });
+
+  // Datei laden
+  async function handleFile(file) {
+    loadedFile = file;
+    fileName.textContent = file.name;
+    const sizeKB = (file.size / 1024).toFixed(1);
+    
+    dropZone.style.display = 'none';
+    fileInfo.style.display = 'flex';
+    fileMeta.textContent = `Lade Datei... (${sizeKB} KB)`;
+
+    const arrayBuffer = await file.arrayBuffer();
+    // Als Uint8Array ablegen, damit es sicher geklont werden kann
+    originalPdfBytes = new Uint8Array(arrayBuffer);
+
+    try {
+      // Kopie übergeben, um Neutering des Buffers zu verhindern
+      const pdf = await pdfjsLib.getDocument({ data: originalPdfBytes.slice() }).promise;
+      pageCount = pdf.numPages;
+      fileMeta.textContent = `${pageCount} Seite${pageCount > 1 ? 'n' : ''} • ${sizeKB} KB`;
+
+      // Anhang auf Seite 1 suchen
+      detectedAnhang = null;
+      try {
+        const firstPage = await pdf.getPage(1);
+        const textContent = await firstPage.getTextContent();
+        const pageViewport = firstPage.getViewport({ scale: 1.0 });
+        const pageH = pageViewport.height;
+
+        for (const item of textContent.items) {
+          const itemY = item.transform[5];
+          if (itemY > pageH * 0.65) {
+            const str = item.str.trim();
+            const match = str.match(/^Anhang\s+([A-Za-z])(.*)$/i);
+            if (match) {
+              detectedAnhang = {
+                fullText: str,
+                origLetter: match[1],
+                suffix: match[2],
+                x: item.transform[4],
+                y: item.transform[5],
+                fontSize: item.transform[0] || 11.2,
+              };
+              break;
+            }
+          }
+        }
+      } catch (scanErr) {
+        console.warn('Anhang-Scan Warnung:', scanErr);
+      }
+      updateAnhangSubtitle();
+
+      btnProcess.disabled = false;
+      previewBox.style.display = 'flex';
+      await updatePreview();
+    } catch (err) {
+      console.error('Fehler beim Lesen der PDF:', err);
+      alert('Fehler beim Lesen der PDF: ' + err.message);
+      btnRemoveFile.click();
+    }
+  }
+
+  // Live-Vorschau mit Debounce, Task-Abbruch und Offscreen-Buffer
+  let previewSeqId = 0;
+  let currentRenderTask = null;
+  let previewDebounceTimer = null;
+
+  function schedulePreview(delayMs = 120) {
+    if (previewDebounceTimer) clearTimeout(previewDebounceTimer);
+    previewDebounceTimer = setTimeout(() => {
+      updatePreview();
+    }, delayMs);
+  }
+
+  // Entfernt den originalen Anhang-Textblock direkt aus dem PDF-Content-Stream (ohne weiße Box)
+  async function removeAnhangFromContentStream(pdfDoc) {
+    try {
+      const { PDFName, PDFNumber, PDFRef, PDFArray } = PDFLib;
+      const page = pdfDoc.getPage(0);
+      const contentsRef = page.node.get(PDFName.of('Contents'));
+      if (!contentsRef) return false;
+
+      const streamRefs = [];
+      if (contentsRef instanceof PDFRef) {
+        streamRefs.push(contentsRef);
+      } else if (contentsRef instanceof PDFArray) {
+        for (let i = 0; i < contentsRef.size(); i++) {
+          streamRefs.push(contentsRef.get(i));
+        }
+      }
+
+      let modifiedAny = false;
+
+      for (const ref of streamRefs) {
+        const streamObj = pdfDoc.context.lookup(ref);
+        if (!streamObj || !streamObj.contents) continue;
+
+        const raw = streamObj.contents;
+        let streamStr = '';
+
+        const filter = streamObj.dict.get(PDFName.of('Filter'));
+        const isFlate = filter && (filter.toString() === '/FlateDecode' || filter.name === 'FlateDecode');
+
+        if (isFlate && typeof DecompressionStream !== 'undefined') {
+          const ds = new DecompressionStream('deflate');
+          const writer = ds.writable.getWriter();
+          writer.write(raw);
+          writer.close();
+          const reader = ds.readable.getReader();
+          const chunks = [];
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+          }
+          const totalLen = chunks.reduce((acc, c) => acc + c.length, 0);
+          const decomp = new Uint8Array(totalLen);
+          let off = 0;
+          for (const c of chunks) {
+            decomp.set(c, off);
+            off += c.length;
+          }
+          streamStr = new TextDecoder('latin1').decode(decomp);
+        } else {
+          streamStr = new TextDecoder('latin1').decode(raw);
+        }
+
+        // Regex: findet exakt den BT...ET Textblock der ersten Kopfzeile (ohne vorherige BTs wie die Fußzeile zu berühren)
+        const regex = /BT(?:(?!BT)[\s\S])*?0\s+-14\.4843750\s+Td[\s\S]*?ET/;
+        const match = streamStr.match(regex);
+        if (match) {
+          const spaces = ' '.repeat(match[0].length);
+          const modifiedText = streamStr.replace(regex, spaces);
+          const modifiedBytes = new TextEncoder().encode(modifiedText);
+
+          if (isFlate && typeof CompressionStream !== 'undefined') {
+            const cs = new CompressionStream('deflate');
+            const cWriter = cs.writable.getWriter();
+            cWriter.write(modifiedBytes);
+            cWriter.close();
+            const cReader = cs.readable.getReader();
+            const cChunks = [];
+            while (true) {
+              const { done, value } = await cReader.read();
+              if (done) break;
+              cChunks.push(value);
+            }
+            const cTotalLen = cChunks.reduce((acc, c) => acc + c.length, 0);
+            const recomp = new Uint8Array(cTotalLen);
+            let cOff = 0;
+            for (const c of cChunks) {
+              recomp.set(c, cOff);
+              cOff += c.length;
+            }
+            streamObj.contents = recomp;
+            streamObj.dict.set(PDFName.of('Length'), PDFNumber.of(recomp.length));
+          } else {
+            streamObj.contents = modifiedBytes;
+            streamObj.dict.set(PDFName.of('Length'), PDFNumber.of(modifiedBytes.length));
+            if (isFlate) streamObj.dict.delete(PDFName.of('Filter'));
+          }
+
+          modifiedAny = true;
+        }
+      }
+
+      return modifiedAny;
+    } catch (err) {
+      console.warn('Stream-Entfernung Warnung:', err);
+      return false;
+    }
+  }
+
+  async function updatePreview() {
+    if (!originalPdfBytes || typeof PDFLib === 'undefined' || typeof pdfjsLib === 'undefined') return;
+
+    const seqId = ++previewSeqId;
+
+    // Laufenden PDF.js Render-Task sofort sauber abbrechen
+    if (currentRenderTask) {
+      try {
+        currentRenderTask.cancel();
+      } catch (_) {}
+      currentRenderTask = null;
+    }
+
+    const startNum = parseInt(startNumberInput.value, 10) || 1;
+    const removeLogo = toggleLogo.checked;
+    const removeOld = toggleOldPagination.checked;
+    const doReplaceAnhang = toggleAnhang.checked;
+    const anhangLetter = (anhangLetterInput.value || 'C').trim().toUpperCase();
+    const boxHeight = customBoxHeightInput ? (parseFloat(customBoxHeightInput.value) || 17) : 17;
+    const boxY = customBoxYInput ? (parseFloat(customBoxYInput.value) || 47) : 47;
+
+    try {
+      const { PDFDocument, rgb, StandardFonts } = PDFLib;
+      const srcDoc = await PDFDocument.load(originalPdfBytes.slice());
+      if (seqId !== previewSeqId) return;
+
+      const tempDoc = await PDFDocument.create();
+      const [copiedPage] = await tempDoc.copyPages(srcDoc, [0]);
+      tempDoc.addPage(copiedPage);
+
+      const page = tempDoc.getPage(0);
+      const width = page.getWidth();
+      const height = page.getHeight();
+      const font = await tempDoc.embedFont(StandardFonts.Helvetica);
+      const fontBold = await tempDoc.embedFont(StandardFonts.HelveticaBold);
+
+      // 0. Kopfzeile "Anhang" direkt im Content-Stream entfernen & neu aufstempeln (ohne weiße Box)
+      if (doReplaceAnhang) {
+        const streamRemoved = await removeAnhangFromContentStream(tempDoc);
+
+        let newAnhangText = `Anhang ${anhangLetter}`;
+        let posX = 84.7;
+        let posY = height - 58.14;
+        let fSize = 11.2;
+
+        if (detectedAnhang) {
+          newAnhangText = `Anhang ${anhangLetter}${detectedAnhang.suffix}`;
+          posX = detectedAnhang.x;
+          posY = detectedAnhang.y;
+          fSize = detectedAnhang.fontSize;
+        }
+
+        // Fallback: Nur falls der Stream nicht geparst werden konnte, weiße Box als Reserve
+        if (!streamRemoved) {
+          const oldWidth = fontBold.widthOfTextAtSize(detectedAnhang ? detectedAnhang.fullText : newAnhangText, fSize);
+          page.drawRectangle({
+            x: posX - 1.7,
+            y: posY - 3.86,
+            width: Math.max(85, oldWidth + 10),
+            height: 16,
+            color: rgb(1, 1, 1),
+          });
+        }
+
+        // Neues Anhang-Label aufstempeln
+        page.drawText(newAnhangText, {
+          x: posX,
+          y: posY,
+          size: fSize,
+          font: fontBold,
+          color: rgb(0, 0, 0),
+        });
+      }
+
+      // 1. MAXQDA Logo präzise überdecken (ohne Text darüber zu berühren)
+      if (removeLogo) {
+        page.drawRectangle({
+          x: width - 122,
+          y: boxY,
+          width: 86,
+          height: boxHeight,
+          color: rgb(1, 1, 1),
+        });
+      }
+
+      // 2. Alte Paginierung ("1/8", "1/9") präzise überdecken
+      if (removeOld) {
+        page.drawRectangle({
+          x: width / 2 - 25,
+          y: boxY,
+          width: 50,
+          height: Math.min(boxHeight, 14),
+          color: rgb(1, 1, 1),
+        });
+      }
+
+      // 3. Neue Seitenzahl einfügen
+      const text = String(startNum);
+      const fontSize = 12.96;
+      const textWidth = font.widthOfTextAtSize(text, fontSize);
+      const targetRightX = width * (1.0 - 0.095166);
+      const baselineY = height * 0.066733;
+      const originX = targetRightX - textWidth;
+
+      page.drawText(text, {
+        x: originX,
+        y: baselineY,
+        size: fontSize,
+        font: font,
+        color: rgb(0, 0, 0),
+      });
+
+      const previewBytes = await tempDoc.save();
+      if (seqId !== previewSeqId) return;
+
+      // In PDF.js laden
+      const pdf = await pdfjsLib.getDocument({ data: previewBytes }).promise;
+      if (seqId !== previewSeqId) return;
+
+      const previewPage = await pdf.getPage(1);
+      if (seqId !== previewSeqId) return;
+
+      const viewport = previewPage.getViewport({ scale: 1.3 });
+
+      // Offscreen-Canvas für die gesamte Seite (normal, aufrecht gerendert)
+      const offscreen = document.createElement('canvas');
+      offscreen.width = Math.round(viewport.width);
+      offscreen.height = Math.round(viewport.height);
+      const offCtx = offscreen.getContext('2d');
+
+      // Normales Rendern OHNE fehlerhafte Matrix-Transformation
+      const renderTask = previewPage.render({
+        canvasContext: offCtx,
+        viewport: viewport,
+      });
+      currentRenderTask = renderTask;
+
+      await renderTask.promise;
+      currentRenderTask = null;
+
+      if (seqId !== previewSeqId) return;
+
+      const ctx = previewCanvas.getContext('2d');
+
+      if (previewMode === 'header') {
+        const headerCropHeight = Math.round(viewport.height * 0.16);
+        previewCanvas.width = offscreen.width;
+        previewCanvas.height = headerCropHeight;
+        ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+        ctx.drawImage(
+          offscreen,
+          0, 0, offscreen.width, headerCropHeight,
+          0, 0, previewCanvas.width, headerCropHeight
+        );
+      } else {
+        const footerCropHeight = Math.round(viewport.height * 0.22);
+        previewCanvas.width = offscreen.width;
+        previewCanvas.height = footerCropHeight;
+        ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+        const sy = Math.round(viewport.height - footerCropHeight);
+        ctx.drawImage(
+          offscreen,
+          0, sy, offscreen.width, footerCropHeight,
+          0, 0, previewCanvas.width, footerCropHeight
+        );
+      }
+
+    } catch (e) {
+      if (e && e.name === 'RenderingCancelledException') {
+        // Gewollter Abbruch durch neuere Eingabe - ignorieren
+        return;
+      }
+      console.error('Vorschau-Fehler:', e);
+    }
+  }
+
+  // Event Listener für Einstellungen mit Debouncing & automatischer Tab-Auswahl
+  anhangLetterInput.addEventListener('input', () => {
+    anhangLetterInput.value = anhangLetterInput.value.toUpperCase();
+    updateAnhangSubtitle();
+    if (previewMode !== 'header') setPreviewMode('header');
+    else schedulePreview(100);
+  });
+
+  toggleAnhang.addEventListener('change', () => {
+    if (previewMode !== 'header') setPreviewMode('header');
+    else schedulePreview(20);
+  });
+
+  startNumberInput.addEventListener('input', () => {
+    if (previewMode !== 'footer') setPreviewMode('footer');
+    schedulePreview(100);
+  });
+  toggleLogo.addEventListener('change', () => {
+    if (previewMode !== 'footer') setPreviewMode('footer');
+    schedulePreview(20);
+  });
+  toggleOldPagination.addEventListener('change', () => {
+    if (previewMode !== 'footer') setPreviewMode('footer');
+    schedulePreview(20);
+  });
+  if (customBoxHeightInput) {
+    customBoxHeightInput.addEventListener('input', () => {
+      if (previewMode !== 'footer') setPreviewMode('footer');
+      schedulePreview(100);
+    });
+  }
+  if (customBoxYInput) {
+    customBoxYInput.addEventListener('input', () => {
+      if (previewMode !== 'footer') setPreviewMode('footer');
+      schedulePreview(100);
+    });
+  }
+
+  // PDF Nummerieren & Herunterladen
+  btnProcess.addEventListener('click', async () => {
+    if (!originalPdfBytes || !loadedFile || typeof PDFLib === 'undefined') return;
+
+    btnProcess.disabled = true;
+    progressWrap.style.display = 'flex';
+    progressBarFill.style.width = '0%';
+    progressText.textContent = 'Bereite Dokument vor...';
+
+    const startNum = parseInt(startNumberInput.value, 10) || 1;
+    const removeLogo = toggleLogo.checked;
+    const removeOld = toggleOldPagination.checked;
+    const doReplaceAnhang = toggleAnhang.checked;
+    const anhangLetter = (anhangLetterInput.value || 'C').trim().toUpperCase();
+    const boxHeight = customBoxHeightInput ? (parseFloat(customBoxHeightInput.value) || 17) : 17;
+    const boxY = customBoxYInput ? (parseFloat(customBoxYInput.value) || 47) : 47;
+
+    try {
+      const { PDFDocument, rgb, StandardFonts } = PDFLib;
+      const pdfDoc = await PDFDocument.load(originalPdfBytes.slice());
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+      const totalPages = pdfDoc.getPageCount();
+
+      let currentNum = startNum;
+
+      for (let i = 0; i < totalPages; i++) {
+        const page = pdfDoc.getPage(i);
+        const width = page.getWidth();
+        const height = page.getHeight();
+
+        // 0. Kopfzeile "Anhang" direkt im Content-Stream entfernen & neu aufstempeln (ohne weiße Box)
+        if (i === 0 && doReplaceAnhang) {
+          const streamRemoved = await removeAnhangFromContentStream(pdfDoc);
+
+          let newAnhangText = `Anhang ${anhangLetter}`;
+          let posX = 84.7;
+          let posY = height - 58.14;
+          let fSize = 11.2;
+
+          if (detectedAnhang) {
+            newAnhangText = `Anhang ${anhangLetter}${detectedAnhang.suffix}`;
+            posX = detectedAnhang.x;
+            posY = detectedAnhang.y;
+            fSize = detectedAnhang.fontSize;
+          }
+
+          // Fallback: Nur falls der Stream nicht geparst werden konnte, weiße Box als Reserve
+          if (!streamRemoved) {
+            const oldWidth = fontBold.widthOfTextAtSize(detectedAnhang ? detectedAnhang.fullText : newAnhangText, fSize);
+            page.drawRectangle({
+              x: posX - 1.7,
+              y: posY - 3.86,
+              width: Math.max(85, oldWidth + 10),
+              height: 16,
+              color: rgb(1, 1, 1),
+            });
+          }
+
+          page.drawText(newAnhangText, {
+            x: posX,
+            y: posY,
+            size: fSize,
+            font: fontBold,
+            color: rgb(0, 0, 0),
+          });
+        }
+
+        // 1. MAXQDA-Logo überdecken (präzise ohne Textanschnitt)
+        if (removeLogo) {
+          page.drawRectangle({
+            x: width - 122,
+            y: boxY,
+            width: 86,
+            height: boxHeight,
+            color: rgb(1, 1, 1),
+          });
+        }
+
+        // 2. Alte Paginierung überdecken (präzise ohne Textanschnitt)
+        if (removeOld) {
+          page.drawRectangle({
+            x: width / 2 - 25,
+            y: boxY,
+            width: 50,
+            height: Math.min(boxHeight, 14),
+            color: rgb(1, 1, 1),
+          });
+        }
+
+        // 3. Seitenzahl aufstempeln
+        const text = String(currentNum);
+        const fontSize = 12.96;
+        const textWidth = font.widthOfTextAtSize(text, fontSize);
+        const targetRightX = width * (1.0 - 0.095166);
+        const baselineY = height * 0.066733;
+        const originX = targetRightX - textWidth;
+
+        page.drawText(text, {
+          x: originX,
+          y: baselineY,
+          size: fontSize,
+          font: font,
+          color: rgb(0, 0, 0),
+        });
+
+        currentNum++;
+
+        // Fortschrittsanzeige
+        const percent = Math.round(((i + 1) / totalPages) * 100);
+        progressBarFill.style.width = percent + '%';
+        progressText.textContent = `Verarbeite Seite ${i + 1} von ${totalPages}...`;
+        await new Promise(r => setTimeout(r, 10)); // UI Tick
+      }
+
+      progressText.textContent = 'Erzeuge fertige PDF...';
+      const modifiedPdfBytes = await pdfDoc.save();
+
+      // Download auslösen
+      const blob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const baseName = loadedFile.name.replace(/\.pdf$/i, '');
+      a.href = downloadUrl;
+      a.download = `${baseName}_nummeriert.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
+
+      progressText.textContent = '✅ Fertig heruntergeladen!';
+      setTimeout(() => {
+        progressWrap.style.display = 'none';
+        btnProcess.disabled = false;
+      }, 2500);
+
+    } catch (err) {
+      alert('Fehler bei der Verarbeitung: ' + err.message);
+      progressWrap.style.display = 'none';
+      btnProcess.disabled = false;
+    }
+  });
+</script>
+
+</body>
+</html>
