@@ -424,10 +424,10 @@
     <div class="setting-row">
       <div class="setting-label">
         <span class="setting-title">Kopfzeile: "Anhang" korrigieren</span>
-        <span class="setting-subtitle" id="anhangSubtitle">Kopfzeile auf Seite 1 anpassen (z. B. "Anhang B..." ➔ "Anhang C...")</span>
+        <span class="setting-subtitle" id="anhangSubtitle">Kopfzeile auf Seite 1 anpassen (z. B. "Anhang B1" ➔ "Anhang C1" oder "Anhang C")</span>
       </div>
       <div style="display: flex; align-items: center; gap: 8px;">
-        <input type="text" id="anhangLetterInput" value="C" maxlength="4" style="width: 48px; padding: 7px 6px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-weight: 700; text-align: center; background: #F8FAFC; text-transform: uppercase;" title="Neuer Buchstabe für den Anhang (z. B. C)">
+        <input type="text" id="anhangInput" value="C1" maxlength="8" style="width: 62px; padding: 7px 6px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-weight: 700; text-align: center; background: #F8FAFC; text-transform: uppercase;" title="Neue Bezeichnung für den Anhang (z. B. C1, C2 oder nur C)" placeholder="C1">
         <label class="switch">
           <input type="checkbox" id="toggleAnhang" checked>
           <span class="slider"></span>
@@ -541,7 +541,7 @@
   const btnRemoveFile = document.getElementById('btnRemoveFile');
   const startNumberInput = document.getElementById('startNumber');
   const anhangSubtitle = document.getElementById('anhangSubtitle');
-  const anhangLetterInput = document.getElementById('anhangLetterInput');
+  const anhangInput = document.getElementById('anhangInput');
   const toggleAnhang = document.getElementById('toggleAnhang');
   const toggleLogo = document.getElementById('toggleLogo');
   const toggleOldPagination = document.getElementById('toggleOldPagination');
@@ -587,13 +587,23 @@
     }
   });
 
+  function getTargetAnhangText() {
+    let tag = (anhangInput.value || '').trim().toUpperCase();
+    tag = tag.replace(/^ANHANG\s*/i, '');
+    const extra = (detectedAnhang && detectedAnhang.extraSuffix) ? detectedAnhang.extraSuffix : '';
+    if (tag) {
+      return `Anhang ${tag}${extra}`;
+    } else {
+      return extra ? `Anhang${extra}` : 'Anhang';
+    }
+  }
+
   function updateAnhangSubtitle() {
-    const letter = (anhangLetterInput.value || 'C').trim().toUpperCase();
+    const targetText = getTargetAnhangText();
     if (detectedAnhang) {
-      const targetText = `Anhang ${letter}${detectedAnhang.suffix}`;
       anhangSubtitle.innerHTML = `Erkannt: <strong style="color: var(--text-main);">"${detectedAnhang.fullText}"</strong> ➔ wird zu <strong style="color: var(--primary);">"${targetText}"</strong>`;
     } else {
-      anhangSubtitle.textContent = `Ersetzt Kopfzeile "Anhang ..." durch "Anhang ${letter}..." auf Seite 1`;
+      anhangSubtitle.textContent = `Ersetzt Kopfzeile "Anhang ..." durch "${targetText}" auf Seite 1`;
     }
   }
 
@@ -657,12 +667,12 @@
           const itemY = item.transform[5];
           if (itemY > pageH * 0.65) {
             const str = item.str.trim();
-            const match = str.match(/^Anhang\s+([A-Za-z])(.*)$/i);
+            const match = str.match(/^Anhang(?:\s+([A-Za-z0-9\.\-_]+))?(.*)$/i);
             if (match) {
               detectedAnhang = {
                 fullText: str,
-                origLetter: match[1],
-                suffix: match[2],
+                origTag: match[1] || '',
+                extraSuffix: match[2] || '',
                 x: item.transform[4],
                 y: item.transform[5],
                 fontSize: item.transform[0] || 11.2,
@@ -814,7 +824,7 @@
     const removeLogo = toggleLogo.checked;
     const removeOld = toggleOldPagination.checked;
     const doReplaceAnhang = toggleAnhang.checked;
-    const anhangLetter = (anhangLetterInput.value || 'C').trim().toUpperCase();
+    const newAnhangText = getTargetAnhangText();
     const boxHeight = customBoxHeightInput ? (parseFloat(customBoxHeightInput.value) || 17) : 17;
     const boxY = customBoxYInput ? (parseFloat(customBoxYInput.value) || 47) : 47;
 
@@ -837,13 +847,11 @@
       if (doReplaceAnhang) {
         const streamRemoved = await removeAnhangFromContentStream(tempDoc);
 
-        let newAnhangText = `Anhang ${anhangLetter}`;
         let posX = 84.7;
         let posY = height - 58.14;
         let fSize = 11.2;
 
         if (detectedAnhang) {
-          newAnhangText = `Anhang ${anhangLetter}${detectedAnhang.suffix}`;
           posX = detectedAnhang.x;
           posY = detectedAnhang.y;
           fSize = detectedAnhang.fontSize;
@@ -851,12 +859,15 @@
 
         // Fallback: Nur falls der Stream nicht geparst werden konnte, weiße Box als Reserve
         if (!streamRemoved) {
-          const oldWidth = fontBold.widthOfTextAtSize(detectedAnhang ? detectedAnhang.fullText : newAnhangText, fSize);
+          const oldText = detectedAnhang ? detectedAnhang.fullText : 'Anhang';
+          const oldWidth = fontBold.widthOfTextAtSize(oldText, fSize);
+          const newWidth = fontBold.widthOfTextAtSize(newAnhangText, fSize);
+          const boxWidth = Math.max(oldWidth, newWidth) + 12;
           page.drawRectangle({
-            x: posX - 1.7,
-            y: posY - 3.86,
-            width: Math.max(85, oldWidth + 10),
-            height: 16,
+            x: posX - 2,
+            y: posY - 4,
+            width: Math.max(85, boxWidth),
+            height: 18,
             color: rgb(1, 1, 1),
           });
         }
@@ -974,8 +985,8 @@
   }
 
   // Event Listener für Einstellungen mit Debouncing & automatischer Tab-Auswahl
-  anhangLetterInput.addEventListener('input', () => {
-    anhangLetterInput.value = anhangLetterInput.value.toUpperCase();
+  anhangInput.addEventListener('input', () => {
+    anhangInput.value = anhangInput.value.toUpperCase();
     updateAnhangSubtitle();
     if (previewMode !== 'header') setPreviewMode('header');
     else schedulePreview(100);
@@ -1024,7 +1035,7 @@
     const removeLogo = toggleLogo.checked;
     const removeOld = toggleOldPagination.checked;
     const doReplaceAnhang = toggleAnhang.checked;
-    const anhangLetter = (anhangLetterInput.value || 'C').trim().toUpperCase();
+    const newAnhangText = getTargetAnhangText();
     const boxHeight = customBoxHeightInput ? (parseFloat(customBoxHeightInput.value) || 17) : 17;
     const boxY = customBoxYInput ? (parseFloat(customBoxYInput.value) || 47) : 47;
 
@@ -1046,13 +1057,11 @@
         if (i === 0 && doReplaceAnhang) {
           const streamRemoved = await removeAnhangFromContentStream(pdfDoc);
 
-          let newAnhangText = `Anhang ${anhangLetter}`;
           let posX = 84.7;
           let posY = height - 58.14;
           let fSize = 11.2;
 
           if (detectedAnhang) {
-            newAnhangText = `Anhang ${anhangLetter}${detectedAnhang.suffix}`;
             posX = detectedAnhang.x;
             posY = detectedAnhang.y;
             fSize = detectedAnhang.fontSize;
@@ -1060,12 +1069,15 @@
 
           // Fallback: Nur falls der Stream nicht geparst werden konnte, weiße Box als Reserve
           if (!streamRemoved) {
-            const oldWidth = fontBold.widthOfTextAtSize(detectedAnhang ? detectedAnhang.fullText : newAnhangText, fSize);
+            const oldText = detectedAnhang ? detectedAnhang.fullText : 'Anhang';
+            const oldWidth = fontBold.widthOfTextAtSize(oldText, fSize);
+            const newWidth = fontBold.widthOfTextAtSize(newAnhangText, fSize);
+            const boxWidth = Math.max(oldWidth, newWidth) + 12;
             page.drawRectangle({
-              x: posX - 1.7,
-              y: posY - 3.86,
-              width: Math.max(85, oldWidth + 10),
-              height: 16,
+              x: posX - 2,
+              y: posY - 4,
+              width: Math.max(85, boxWidth),
+              height: 18,
               color: rgb(1, 1, 1),
             });
           }
